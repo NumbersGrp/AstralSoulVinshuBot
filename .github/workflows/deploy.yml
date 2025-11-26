@@ -19,8 +19,8 @@ jobs:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
-          GITHUB_REPO: ${{ github.repository }}    
-		run: |
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
           # Установка sshpass для подключения по паролю
           sudo apt-get update
           sudo apt-get install -y sshpass
