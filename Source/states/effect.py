@@ -5,3 +5,4 @@ class Effect(StatesGroup):
 
 class StartPdf(StatesGroup):
     waiting_for_document = State()
+    waiting_for_text = State()

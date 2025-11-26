@@ -116,9 +116,10 @@ async def get_pdf_handler(message: Message, state: FSMContext = None):
         pass
 
     file_id = crud.get_setting("start_pdf_id")
+    pdf_text = crud.get_setting("start_pdf_text")
     if file_id:
         try:
-            await bot.send_message(chat_id=chat_id, text="🙏🏻🙏🏻🙏🏻")
+            await bot.send_message(chat_id=chat_id, text=pdf_text)
             await bot.send_document(chat_id=chat_id, document=file_id)
         except Exception:
             await bot.send_message(chat_id=chat_id, text="Не удалось отправить PDF. Проверьте корректность файла.")
@@ -191,6 +192,16 @@ async def start_pdf_save(message: Message, state: FSMContext = None):
         return
     file_id = message.document.file_id
     crud.set_setting("start_pdf_id", file_id)
+    await message.answer("Напишите текст к стартовому PDF.")
+    await state.set_state(StartPdf.waiting_for_text)
+
+@dp.message(StateFilter(StartPdf.waiting_for_text))
+async def start_pdf_text_save(message: Message, state: FSMContext = None):
+    user = crud.get_user(message.from_user.id)
+    if user is None or user.role != "admin":
+        await message.answer("У вас нет прав на выполнение этой команды.")
+        return
+    crud.set_setting("start_pdf_text", message.text)
     await state.clear()
     await message.answer("Стартовый PDF сохранён и будет отправляться по кнопке 'Получить PDF'.")
 
