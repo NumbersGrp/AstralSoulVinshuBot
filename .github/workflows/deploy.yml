@@ -1,0 +1,126 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - production
+  workflow_dispatch: # Позволяет запускать вручную через GitHub UI
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Deploy to server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+          GITHUB_REPO: ${{ github.repository }}
+        
+	run: |
+          # Установка sshpass для подключения по паролю
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          
+          # Debug: показываем к какому хосту подключаемся
+          echo "Attempting to connect to: $SSH_USER@$SSH_HOST"
+          
+          # Команда для деплоя на сервер с увеличенным таймаутом
+          sshpass -p "$SSH_PASSWORD" ssh \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=30 \
+            -o ServerAliveInterval=60 \
+            -o ServerAliveCountMax=3 \
+            $SSH_USER@$SSH_HOST bash << EOF
+            set -e
+            
+            # Экспортируем переменные
+            export GITHUB_REPO="${GITHUB_REPO}"
+            
+            echo "=== Начало деплоя ==="
+            
+            # Проверка наличия Docker
+            if ! command -v docker &> /dev/null; then
+              echo "Ошибка: Docker не установлен на сервере"
+              exit 1
+            fi
+            
+            # Проверка наличия docker-compose
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Ошибка: docker-compose не установлен на сервере"
+              exit 1
+            fi
+            
+            echo "Docker версия: \$(docker --version)"
+            echo "Docker Compose версия: \$(docker-compose --version)"
+            
+            # Переходим в директорию проекта
+            PROJECT_DIR="/root/app"
+            
+            # Создаем директорию если её нет
+            mkdir -p \$PROJECT_DIR
+            cd \$PROJECT_DIR
+            
+            # Обновляем код из репозитория
+            if [ -d ".git" ]; then
+              echo "Обновление кода из репозитория..."
+              git fetch origin
+              git reset --hard origin/main
+              git clean -fd
+            else
+              echo "Клонирование репозитория..."
+              # Для приватного репозитория может потребоваться токен или SSH ключ
+              if [ -n "\$GITHUB_TOKEN" ]; then
+                git clone https://\${GITHUB_TOKEN}@github.com/\${GITHUB_REPO}.git .
+              else
+                git clone https://github.com/\${GITHUB_REPO}.git .
+              fi
+            fi
+            
+            # Показываем текущий коммит
+            echo "Текущий коммит: \$(git rev-parse HEAD)"
+            
+            # Очищаем неиспользуемые ресурсы Docker перед работой
+            echo "Очистка неиспользуемых ресурсов Docker..."
+            docker system prune -a -f --volumes || true
+            
+            # Останавливаем текущие контейнеры
+            echo "Остановка текущих контейнеров..."
+            docker-compose down || true
+            
+            # Собираем и запускаем контейнеры
+            echo "Сборка и запуск контейнеров..."
+            docker-compose build --no-cache
+            
+            echo "Запуск контейнеров..."
+            docker-compose up -d
+            
+            # Ждем немного для запуска контейнеров
+            sleep 10
+            
+            # Показываем статус контейнеров
+            echo "=== Статус контейнеров ==="
+            docker-compose ps
+            
+            # Проверяем, что все контейнеры запущены
+            if ! docker-compose ps | grep -q "Up"; then
+              echo "Предупреждение: некоторые контейнеры могут быть не запущены"
+            fi
+            
+            # Проверяем логи на наличие ошибок
+            echo "=== Последние логи backend ==="
+            docker-compose logs --tail=30 backend || true
+            
+            echo "=== Последние логи frontend ==="
+            docker-compose logs --tail=30 frontend || true
+            
+            echo "=== Последние логи postgres ==="
+            docker-compose logs --tail=20 postgres || true
+            
+            echo "=== Деплой завершен успешно! ==="
+          EOF
