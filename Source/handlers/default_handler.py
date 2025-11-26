@@ -118,6 +118,7 @@ async def get_pdf_handler(message: Message, state: FSMContext = None):
     file_id = crud.get_setting("start_pdf_id")
     if file_id:
         try:
+            await bot.send_message(chat_id=chat_id, text="🙏🏻🙏🏻🙏🏻")
             await bot.send_document(chat_id=chat_id, document=file_id)
         except Exception:
             await bot.send_message(chat_id=chat_id, text="Не удалось отправить PDF. Проверьте корректность файла.")
@@ -209,6 +210,9 @@ async def lesson_handler(callback_query: CallbackQuery, state: FSMContext = None
     if lesson.chat_id:
         try:
             await bot.forward_message(chat_id=callback_query.from_user.id, from_chat_id=lesson.chat_id, message_id=lesson.content_message_id)
+            if lesson.uid == "c29cc385-baa7-4bf8-945f-ba5730335dad":
+                await bot.send_message(chat_id=callback_query.from_user.id, text="Ссылка: http://aganare.ru/astral", reply_markup=await link_kb())
+                return
         except Exception:
             await bot.send_message(chat_id=callback_query.from_user.id, text="Не удалось переслать контент урока.")
         try:
@@ -244,7 +248,7 @@ async def lesson_handler(callback_query: CallbackQuery, state: FSMContext = None
     else:
         await bot.send_message(chat_id=callback_query.from_user.id, text="Чат хранения уроков не настроен. Обратитесь к администратору.")
     crud.complete_lesson(lesson_id, user.uid)
-    await bot.send_message(chat_id=callback_query.from_user.id, text="Ваши уроки", reply_markup=await all_lessons_kb(crud))
+    await bot.send_message(chat_id=callback_query.from_user.id, text="Ваши уроки", reply_markup=await all_lessons_kb(crud, user.uid))
     
 @dp.message(F.text.lower() == "установить чат хранения уроков")
 async def set_lessons_storage_chat(message: Message, state: FSMContext = None):

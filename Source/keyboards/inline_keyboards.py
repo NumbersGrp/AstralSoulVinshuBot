@@ -29,3 +29,9 @@ async def all_lessons_kb(crud: Crud, user_id: str) -> InlineKeyboardMarkup:
 
     kb = InlineKeyboardMarkup(inline_keyboard=ikb)
     return kb
+
+async def link_kb() -> InlineKeyboardMarkup:
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="ПЕРЕЙТИ К ОПИСАНИЮ КУРСА", url="http://aganare.ru/astral")]
+    ])
+    return kb
