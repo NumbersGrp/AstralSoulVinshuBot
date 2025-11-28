@@ -23,9 +23,9 @@ async def all_lessons_kb(crud: Crud, user_id: str) -> InlineKeyboardMarkup:
     ikb = []
     for i in range(0, len(lessons)):
         if lessons[i].uid in completed_lessons:
-            ikb.append([InlineKeyboardButton(text=f"✅ Урок {i+1}", callback_data=f"lesson_{lessons[i].uid}")])
+            ikb.append([InlineKeyboardButton(text=f"✅ Урок {i+2}", callback_data=f"lesson_{lessons[i].uid}")])
         else:
-            ikb.append([InlineKeyboardButton(text=f"Урок {i+1}", callback_data=f"lesson_{lessons[i].uid}")])
+            ikb.append([InlineKeyboardButton(text=f"Урок {i+2}", callback_data=f"lesson_{lessons[i].uid}")])
 
     kb = InlineKeyboardMarkup(inline_keyboard=ikb)
     return kb
