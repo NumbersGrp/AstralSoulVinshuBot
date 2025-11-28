@@ -37,13 +37,13 @@ jobs:
             -o ConnectTimeout=30 \
             -o ServerAliveInterval=60 \
             -o ServerAliveCountMax=3 \
-            $SSH_USER@$SSH_HOST bash << 'EOF'
+            $SSH_USER@$SSH_HOST 'bash -s' << 'EOF'
             set -e
             
-            # Экспортируем переменные
-            export GITHUB_REPO="$1"
-            export BOT_TOKEN="$2"
-            export DATABASE_URL="$3"
+            # Получаем переменные как аргументы
+            GITHUB_REPO="$1"
+            BOT_TOKEN="$2"
+            DATABASE_URL="$3"
             
             echo "=== Начало деплоя ==="
             
@@ -59,15 +59,15 @@ jobs:
               exit 1
             fi
             
-            echo "Docker версия: \$(docker --version)"
-            echo "Docker Compose версия: \$(docker-compose --version)"
+            echo "Docker версия: $(docker --version)"
+            echo "Docker Compose версия: $(docker-compose --version)"
             
             # Переходим в директорию проекта
             PROJECT_DIR="/root/app"
             
             # Создаем директорию если её нет
-            mkdir -p \$PROJECT_DIR
-            cd \$PROJECT_DIR
+            mkdir -p $PROJECT_DIR
+            cd $PROJECT_DIR
             
             # Обновляем код из репозитория
             if [ -d ".git" ]; then
@@ -77,20 +77,15 @@ jobs:
               git clean -fd
             else
               echo "Клонирование репозитория..."
-              # Для приватного репозитория может потребоваться токен или SSH ключ
-              if [ -n "\$GITHUB_TOKEN" ]; then
-                git clone https://\${GITHUB_TOKEN}@github.com/\${GITHUB_REPO}.git .
-              else
-                git clone https://github.com/\${GITHUB_REPO}.git .
-              fi
+              git clone https://github.com/$GITHUB_REPO.git .
             fi
             
             # Создаем .env файл с секретами
             echo "Создание .env файла..."
-            cat > .env << ENV_EOF
-BOT_TOKEN=\${BOT_TOKEN}
-DATABASE_URL=\${DATABASE_URL}
-ENV_EOF
+            cat > .env << ENVFILE
+BOT_TOKEN=${BOT_TOKEN}
+DATABASE_URL=${DATABASE_URL}
+ENVFILE
             
             # Защищаем .env файл
             chmod 600 .env
@@ -100,7 +95,7 @@ ENV_EOF
             ls -la .env
             
             # Показываем текущий коммит
-            echo "Текущий коммит: \$(git rev-parse HEAD)"
+            echo "Текущий коммит: $(git rev-parse HEAD)"
             
             # Очищаем неиспользуемые ресурсы Docker перед работой
             echo "Очистка неиспользуемых ресурсов Docker..."
@@ -140,4 +135,4 @@ ENV_EOF
             docker-compose logs --tail=20 postgres || true
             
             echo "=== Деплой завершен успешно! ==="
-          EOF "$GITHUB_REPO" "$BOT_TOKEN" "$DATABASE_URL"
+EOF "$GITHUB_REPO" "$BOT_TOKEN" "$DATABASE_URL"
