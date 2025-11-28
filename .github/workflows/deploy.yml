@@ -125,4 +125,3 @@ jobs:
             docker-compose logs --tail=20 postgres || true
             
             echo "=== Деплой завершен успешно! ==="
-EOF
