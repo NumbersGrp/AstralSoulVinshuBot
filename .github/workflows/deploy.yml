@@ -14,36 +14,40 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Create .env file locally
+        run: |
+          echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" > .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo ".env file created locally"
+          # Для отладки (не показываем содержимое)
+          ls -la .env
+
       - name: Deploy to server
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
           SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
           GITHUB_REPO: ${{ github.repository }}
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           # Установка sshpass для подключения по паролю
           sudo apt-get update
           sudo apt-get install -y sshpass
           
-          # Debug: показываем к какому хосту подключаемся
           echo "Attempting to connect to: $SSH_USER@$SSH_HOST"
           
-          # Команда для деплоя на сервер с увеличенным таймаутом
+          # Копируем .env файл на сервер
+          sshpass -p "$SSH_PASSWORD" scp \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            .env $SSH_USER@$SSH_HOST:/tmp/.env
+
+          # Выполняем деплой
           sshpass -p "$SSH_PASSWORD" ssh \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -o ConnectTimeout=30 \
-            -o ServerAliveInterval=60 \
-            -o ServerAliveCountMax=3 \
-            $SSH_USER@$SSH_HOST 'bash -s' << 'EOF'
+            $SSH_USER@$SSH_HOST << 'EOF'
             set -e
-            
-            # Получаем переменные как аргументы
-            GITHUB_REPO="$1"
-            BOT_TOKEN="$2"
-            DATABASE_URL="$3"
             
             echo "=== Начало деплоя ==="
             
@@ -53,7 +57,6 @@ jobs:
               exit 1
             fi
             
-            # Проверка наличия docker-compose
             if ! command -v docker-compose &> /dev/null; then
               echo "Ошибка: docker-compose не установлен на сервере"
               exit 1
@@ -64,8 +67,6 @@ jobs:
             
             # Переходим в директорию проекта
             PROJECT_DIR="/root/app"
-            
-            # Создаем директорию если её нет
             mkdir -p $PROJECT_DIR
             cd $PROJECT_DIR
             
@@ -77,27 +78,18 @@ jobs:
               git clean -fd
             else
               echo "Клонирование репозитория..."
-              git clone https://github.com/$GITHUB_REPO.git .
+              git clone https://github.com/${{ github.repository }}.git .
             fi
             
-            # Создаем .env файл с секретами
-            echo "Создание .env файла..."
-            cat > .env << ENVFILE
-BOT_TOKEN=${BOT_TOKEN}
-DATABASE_URL=${DATABASE_URL}
-ENVFILE
-            
-            # Защищаем .env файл
+            # Копируем .env файл в проект
+            cp /tmp/.env .env
             chmod 600 .env
-            
-            # Показываем что файл создан (без содержимого для безопасности)
-            echo ".env файл создан успешно"
-            ls -la .env
+            echo ".env файл скопирован в проект"
             
             # Показываем текущий коммит
             echo "Текущий коммит: $(git rev-parse HEAD)"
             
-            # Очищаем неиспользуемые ресурсы Docker перед работой
+            # Очищаем неиспользуемые ресурсы Docker
             echo "Очистка неиспользуемых ресурсов Docker..."
             docker system prune -a -f --volumes || true
             
@@ -108,8 +100,6 @@ ENVFILE
             # Собираем и запускаем контейнеры
             echo "Сборка и запуск контейнеров..."
             docker-compose build --no-cache
-            
-            echo "Запуск контейнеров..."
             docker-compose up -d
             
             # Ждем немного для запуска контейнеров
@@ -135,4 +125,4 @@ ENVFILE
             docker-compose logs --tail=20 postgres || true
             
             echo "=== Деплой завершен успешно! ==="
-EOF "$GITHUB_REPO" "$BOT_TOKEN" "$DATABASE_URL"
+EOF
